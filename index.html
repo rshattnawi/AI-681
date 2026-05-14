@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 681 - ViT Feature Extraction & Person Detection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 20px 40px;
+            border-bottom: 2px solid #00d4ff;
+            display: flex; align-items: center; gap: 15px;
+        }
+        header h1 { font-size: 20px; color: #00d4ff; }
+        header p  { font-size: 12px; color: #888; margin-top: 4px; }
+        .badge {
+            background: #00d4ff22; border: 1px solid #00d4ff;
+            color: #00d4ff; padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; margin-left: auto;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 0;
+            border-bottom: 2px solid #2a2a4a;
+            padding: 0 40px; background: #1a1a2e;
+        }
+        .tab-btn {
+            padding: 14px 28px; cursor: pointer;
+            background: none; border: none; color: #888;
+            font-size: 14px; font-weight: bold;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s; margin-bottom: -2px;
+        }
+        .tab-btn:hover { color: #00d4ff; }
+        .tab-btn.active { color: #00d4ff; border-bottom-color: #00d4ff; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Container */
+        .container {
+            max-width: 1200px; margin: 30px auto;
+            padding: 0 20px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+        }
+
+        .card {
+            background: #1a1a2e; border: 1px solid #2a2a4a;
+            border-radius: 12px; padding: 24px;
+        }
+        .card h2 { font-size: 15px; color: #00d4ff; margin-bottom: 16px; }
+
+        .upload-area {
+            border: 2px dashed #2a2a4a; border-radius: 10px;
+            padding: 24px 20px; text-align: center; cursor: pointer;
+            transition: all 0.3s; margin-bottom: 12px;
+        }
+        .upload-area:hover { border-color: #00d4ff; background: #00d4ff0a; }
+        .upload-area .icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-area p { color: #888; font-size: 13px; }
+        .upload-area span { color: #00d4ff; }
+
+        input[type="file"] { display: none; }
+
+        .btn {
+            width: 100%; padding: 12px;
+            background: linear-gradient(135deg, #00d4ff, #0099bb);
+            color: #0f0f1a; border: none; border-radius: 8px;
+            font-size: 15px; font-weight: bold; cursor: pointer;
+            transition: opacity 0.2s; margin-top: 8px;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.detect-btn {
+            background: linear-gradient(135deg, #ff9f43, #ee5a24);
+        }
+
+        .preview-box {
+            width: 100%; min-height: 200px; background: #0f0f1a;
+            border-radius: 8px; display: flex; align-items: center;
+            justify-content: center; margin-bottom: 16px;
+            overflow: hidden; padding: 8px;
+        }
+        .preview-box .placeholder { color: #444; font-size: 13px; text-align: center; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .stats-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
+        .stat-box {
+            background: #0f0f1a; border: 1px solid #2a2a4a;
+            border-radius: 8px; padding: 12px; text-align: center;
+        }
+        .stat-box.highlight { border-color: #00d4ff44; background: #00d4ff0a; }
+        .stat-box .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+        .stat-box .value { font-size: 16px; font-weight: bold; color: #00d4ff; }
+        .stat-box.highlight .value { color: #00ffaa; font-size: 20px; }
+        .stat-box.orange .value { color: #ff9f43; }
+
+        .feature-bar-container { margin-top: 8px; }
+        .feature-bar-container p { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .feature-bars {
+            display: flex; align-items: flex-end; gap: 1px;
+            height: 60px; background: #0f0f1a; border-radius: 6px;
+            padding: 4px; overflow: hidden;
+        }
+        .feature-bar {
+            flex: 1; border-radius: 2px 2px 0 0;
+            min-height: 2px; opacity: 0.7; transition: opacity 0.2s;
+        }
+        .feature-bar:hover { opacity: 1; }
+
+        .loading {
+            display: none; text-align: center; padding: 20px; color: #00d4ff;
+        }
+        .spinner {
+            width: 30px; height: 30px;
+            border: 3px solid #1a1a2e; border-top: 3px solid #00d4ff;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .full-width { grid-column: 1 / -1; }
+
+        .vector-preview {
+            background: #0f0f1a; border-radius: 8px; padding: 16px;
+            font-family: monospace; font-size: 12px; color: #00d4ff;
+            word-break: break-all; max-height: 80px; overflow: hidden; line-height: 1.6;
+        }
+
+        .info-row {
+            display: flex; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-row span:first-child { color: #888; }
+        .info-row span:last-child { color: #fff; font-weight: bold; }
+
+        .label-tag { font-size: 11px; color: #888; margin-bottom: 6px; display: block; }
+        .img-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+        .img-pair img { width: 100%; border-radius: 6px; max-height: 130px; object-fit: cover; }
+        .section-title {
+            font-size: 13px; color: #00d4ff; font-weight: bold;
+            margin: 16px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #2a2a4a;
+        }
+
+        /* Detection specific */
+        .detection-result img { width: 100%; border-radius: 8px; }
+        .detection-badge {
+            display: inline-block; background: #ff9f4322;
+            border: 1px solid #ff9f43; color: #ff9f43;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 13px; margin: 4px;
+        }
+        .person-count {
+            font-size: 48px; font-weight: bold; color: #ff9f43;
+            text-align: center; padding: 10px;
+        }
+        .person-count span { font-size: 16px; color: #888; display: block; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>🔬 ViT Feature Extraction + Person Detection</h1>
+        <p>Effective Object Detection in Low-Light Security Environments</p>
+    </div>
+    <div class="badge">AI 681 — Assignments 2 & 3</div>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-features', this)">
+        📊 Assignment 2 — Feature Extraction
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-detection', this)">
+        🎯 Assignment 3 — Person Detection
+    </button>
+</div>
+
+<!-- ===== TAB 1: FEATURE EXTRACTION ===== -->
+<div id="tab-features" class="tab-content active">
+<div class="container">
+
+    <div class="card">
+        <h2>📁 Input Images</h2>
+        <span class="label-tag">1️⃣ Visible Image</span>
+        <div class="upload-area" id="upload-visible" onclick="document.getElementById('visibleInput').click()">
+            <div class="icon">🖼️</div>
+            <p>Click to upload <span>Visible</span> image</p>
+        </div>
+        <input type="file" id="visibleInput" accept="image/*" onchange="handleVisible(event)">
+
+        <span class="label-tag" style="margin-top:8px">2️⃣ Infrared Image</span>
+        <div class="upload-area" id="upload-infrared" onclick="document.getElementById('infraredInput').click()">
+            <div class="icon">🌡️</div>
+            <p>Click to upload <span>Infrared</span> image</p>
+        </div>
+        <input type="file" id="infraredInput" accept="image/*" onchange="handleInfrared(event)">
+
+        <button class="btn" id="extractBtn" onclick="extractFeatures()" disabled>
+            ⚡ Extract & Fuse Features
+        </button>
+    </div>
+
+    <div class="card">
+        <h2>📊 Output Preview</h2>
+        <div class="preview-box" id="previewBox">
+            <div class="placeholder">
+                <div style="font-size:30px;margin-bottom:8px">🔍</div>
+                Upload both images to see results
+            </div>
+        </div>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Extracting & fusing features...</p>
+        </div>
+    </div>
+
+    <div class="card full-width" id="resultsCard" style="display:none">
+        <h2>📈 Feature Extraction Results</h2>
+        <div class="stats-grid-4">
+            <div class="stat-box highlight">
+                <div class="label">Input Shape (Visible)</div>
+                <div class="value" id="statInputShapeVis">—</div>
+            </div>
+            <div class="stat-box highlight">
+                <div class="label">Input Shape (Infrared)</div>
+                <div class="value" id="statInputShapeIr">—</div>
+            </div>
+            <div class="stat-box highlight">
+                <div class="label">Feature Vector (each)</div>
+                <div class="value">768</div>
+            </div>
+            <div class="stat-box highlight">
+                <div class="label">Fused Feature Vector</div>
+                <div class="value">1536</div>
+            </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-box"><div class="label">Mean</div><div class="value" id="statMean">—</div></div>
+            <div class="stat-box"><div class="label">Std Deviation</div><div class="value" id="statStd">—</div></div>
+            <div class="stat-box"><div class="label">Min</div><div class="value" id="statMin">—</div></div>
+            <div class="stat-box"><div class="label">Max</div><div class="value" id="statMax">—</div></div>
+        </div>
+        <div class="section-title">🧠 Attention Maps (Where ViT is Looking)</div>
+        <div class="img-pair" id="attentionMaps" style="margin-bottom:16px"></div>
+        <div class="feature-bar-container">
+            <p>Fused feature vector — 🔵 blue: visible | 🟠 orange: infrared:</p>
+            <div class="feature-bars" id="featureBars"></div>
+        </div>
+        <div class="section-title">ℹ️ Model Info</div>
+        <div class="info-row"><span>Model</span><span>google/vit-base-patch16-224</span></div>
+        <div class="info-row"><span>Feature Type</span><span>CLS Token — Global Image Representation</span></div>
+        <div class="info-row"><span>Fusion</span><span>Feature-Level Fusion (768 + 768 = 1536)</span></div>
+        <div class="info-row"><span>Preprocessed Size</span><span>224 × 224 px</span></div>
+        <div style="margin-top:16px">
+            <p style="font-size:12px;color:#888;margin-bottom:8px">Fused vector preview (first 10 values):</p>
+            <div class="vector-preview" id="vectorPreview"></div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- ===== TAB 2: PERSON DETECTION ===== -->
+<div id="tab-detection" class="tab-content">
+<div class="container">
+
+    <div class="card">
+        <h2>📁 Input — Infrared Image</h2>
+        <div class="upload-area" id="upload-detect" onclick="document.getElementById('detectInput').click()">
+            <div class="icon">🌡️</div>
+            <p>Upload an <span>Infrared</span> image</p>
+            <p style="margin-top:6px;font-size:11px">Model trained on LLVIP infrared images</p>
+        </div>
+        <input type="file" id="detectInput" accept="image/*" onchange="handleDetectFile(event)">
+
+        <button class="btn detect-btn" id="detectBtn" onclick="detectPersons()" disabled>
+            🎯 Detect Persons
+        </button>
+
+        <!-- Model Stats -->
+        <div style="margin-top:20px">
+            <div class="section-title">📊 Model Performance</div>
+            <div class="stats-grid">
+                <div class="stat-box orange"><div class="label">mAP@0.5</div><div class="value">97.9%</div></div>
+                <div class="stat-box orange"><div class="label">F1 Score</div><div class="value">94.8%</div></div>
+                <div class="stat-box orange"><div class="label">Precision</div><div class="value">94.8%</div></div>
+                <div class="stat-box orange"><div class="label">Recall</div><div class="value">94.8%</div></div>
+            </div>
+            <div class="info-row"><span>Model</span><span>YOLOv10n</span></div>
+            <div class="info-row"><span>Dataset</span><span>LLVIP (Infrared)</span></div>
+            <div class="info-row"><span>Training</span><span>30 epochs, 480 images</span></div>
+            <div class="info-row"><span>Inference Speed</span><span>~5.4ms per image</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🎯 Detection Output</h2>
+        <div class="preview-box" id="detectPreview">
+            <div class="placeholder">
+                <div style="font-size:30px;margin-bottom:8px">👤</div>
+                Upload an infrared image to detect persons
+            </div>
+        </div>
+        <div class="loading" id="detectLoading">
+            <div class="spinner"></div>
+            <p>Detecting persons...</p>
+        </div>
+        <div id="detectResults" style="display:none">
+            <div class="person-count" id="personCount">0<span>persons detected</span></div>
+            <div id="detectBadges"></div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script>
+    // ===== Tab switching =====
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+    }
+
+    // ===== Feature Extraction =====
+    let visibleFile = null, infraredFile = null;
+
+    function handleVisible(event) {
+        visibleFile = event.target.files[0];
+        if (!visibleFile) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('upload-visible').innerHTML =
+                `<span class="label-tag">📷 Before — Visible</span>
+                 <img src="${e.target.result}" style="max-width:100%;max-height:130px;border-radius:8px">`;
+        };
+        reader.readAsDataURL(visibleFile);
+        checkReady();
+    }
+
+    function handleInfrared(event) {
+        infraredFile = event.target.files[0];
+        if (!infraredFile) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('upload-infrared').innerHTML =
+                `<span class="label-tag">🌡️ Before — Infrared</span>
+                 <img src="${e.target.result}" style="max-width:100%;max-height:130px;border-radius:8px">`;
+        };
+        reader.readAsDataURL(infraredFile);
+        checkReady();
+    }
+
+    function checkReady() {
+        document.getElementById('extractBtn').disabled = !(visibleFile && infraredFile);
+        if (visibleFile && infraredFile) {
+            document.getElementById('previewBox').innerHTML =
+                `<div class="placeholder"><div style="font-size:30px;margin-bottom:8px">✅</div>Both images ready!</div>`;
+        }
+    }
+
+    async function extractFeatures() {
+        document.getElementById('extractBtn').disabled = true;
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('resultsCard').style.display = 'none';
+
+        try {
+            const visFormData = new FormData();
+            visFormData.append('image', visibleFile);
+            const visData = await (await fetch('/extract', {method:'POST', body:visFormData})).json();
+
+            const irFormData = new FormData();
+            irFormData.append('image', infraredFile);
+            const irData = await (await fetch('/extract', {method:'POST', body:irFormData})).json();
+
+            if (visData.error || irData.error) { alert('Error: ' + (visData.error || irData.error)); return; }
+
+            const fusedFeatures = [...visData.features, ...irData.features];
+
+            // Preview
+            document.getElementById('previewBox').innerHTML =
+                `<div style="width:100%">
+                    <div class="img-pair" style="margin-bottom:10px">
+                        <div><span class="label-tag">✅ Visible (224×224)</span>
+                             <img src="data:image/jpeg;base64,${visData.image_preview}"></div>
+                        <div><span class="label-tag">✅ Infrared (224×224)</span>
+                             <img src="data:image/jpeg;base64,${irData.image_preview}"></div>
+                    </div>
+                    <div><span class="label-tag">🔀 Pixel-Level Fusion</span>
+                         <canvas id="fusedCanvas" style="width:100%;border-radius:6px;display:block"></canvas>
+                    </div>
+                </div>`;
+
+            // Canvas blend
+            const vImg = new Image(), iImg = new Image();
+            vImg.src = 'data:image/jpeg;base64,' + visData.image_preview;
+            vImg.onload = () => {
+                iImg.src = 'data:image/jpeg;base64,' + irData.image_preview;
+                iImg.onload = () => {
+                    const c = document.getElementById('fusedCanvas');
+                    c.width = vImg.width; c.height = vImg.height;
+                    const ctx = c.getContext('2d');
+                    ctx.globalAlpha = 0.5; ctx.drawImage(vImg, 0, 0);
+                    ctx.globalAlpha = 0.5; ctx.drawImage(iImg, 0, 0);
+                    ctx.globalAlpha = 1.0;
+                };
+            };
+
+            // Stats
+            document.getElementById('statInputShapeVis').textContent = visData.input_shape || '224 × 224 × 3';
+            document.getElementById('statInputShapeIr').textContent  = irData.input_shape  || '224 × 224 × 3';
+            const mean = fusedFeatures.reduce((a,b)=>a+b,0)/fusedFeatures.length;
+            const std  = Math.sqrt(fusedFeatures.map(x=>(x-mean)**2).reduce((a,b)=>a+b,0)/fusedFeatures.length);
+            document.getElementById('statMean').textContent = mean.toFixed(4);
+            document.getElementById('statStd').textContent  = std.toFixed(4);
+            document.getElementById('statMin').textContent  = Math.min(...fusedFeatures).toFixed(4);
+            document.getElementById('statMax').textContent  = Math.max(...fusedFeatures).toFixed(4);
+
+            // Attention maps
+            const attDiv = document.getElementById('attentionMaps');
+            attDiv.innerHTML = '';
+            if (visData.feature_map)
+                attDiv.innerHTML += `<div><span class="label-tag">🔵 Visible Attention</span>
+                    <img src="data:image/jpeg;base64,${visData.feature_map}" style="width:100%;border-radius:6px"></div>`;
+            if (irData.feature_map)
+                attDiv.innerHTML += `<div><span class="label-tag">🟠 Infrared Attention</span>
+                    <img src="data:image/jpeg;base64,${irData.feature_map}" style="width:100%;border-radius:6px"></div>`;
+
+            // Bars
+            const bars = document.getElementById('featureBars');
+            bars.innerHTML = '';
+            const first100 = fusedFeatures.slice(0,100);
+            const maxAbs = Math.max(...first100.map(Math.abs), 1);
+            first100.forEach((val,i) => {
+                const bar = document.createElement('div');
+                bar.className = 'feature-bar';
+                bar.style.height = `${(Math.abs(val)/maxAbs)*100}%`;
+                bar.style.background = i < 50 ? '#00d4ff' : '#ff9f43';
+                bars.appendChild(bar);
+            });
+
+            document.getElementById('vectorPreview').textContent =
+                '[' + fusedFeatures.slice(0,10).map(v=>v.toFixed(4)).join(', ') + ', ...]';
+
+            document.getElementById('resultsCard').style.display = 'block';
+
+        } catch(e) {
+            alert('Connection error. Make sure app.py is running.');
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('extractBtn').disabled = false;
+        }
+    }
+
+    // ===== Person Detection =====
+    let detectFile = null;
+
+    function handleDetectFile(event) {
+        detectFile = event.target.files[0];
+        if (!detectFile) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('upload-detect').innerHTML =
+                `<span class="label-tag">🌡️ Input Image</span>
+                 <img src="${e.target.result}" style="max-width:100%;max-height:180px;border-radius:8px">`;
+            document.getElementById('detectPreview').innerHTML =
+                `<div class="placeholder"><div style="font-size:30px;margin-bottom:8px">⏳</div>Click Detect!</div>`;
+        };
+        reader.readAsDataURL(detectFile);
+        document.getElementById('detectBtn').disabled = false;
+        document.getElementById('detectResults').style.display = 'none';
+    }
+
+    async function detectPersons() {
+        document.getElementById('detectBtn').disabled = true;
+        document.getElementById('detectLoading').style.display = 'block';
+        document.getElementById('detectResults').style.display = 'none';
+
+        try {
+            const formData = new FormData();
+            formData.append('image', detectFile);
+            const data = await (await fetch('/detect', {method:'POST', body:formData})).json();
+
+            if (data.error) { alert('Error: ' + data.error); return; }
+
+            document.getElementById('detectPreview').innerHTML =
+                `<div class="detection-result">
+                    <img src="data:image/jpeg;base64,${data.detected_image}" alt="detection">
+                 </div>`;
+
+            document.getElementById('personCount').innerHTML =
+                `${data.person_count}<span>person${data.person_count !== 1 ? 's' : ''} detected</span>`;
+
+            const badgesDiv = document.getElementById('detectBadges');
+            badgesDiv.innerHTML = '';
+            data.detections.forEach((d, i) => {
+                badgesDiv.innerHTML += `<span class="detection-badge">👤 Person ${i+1} — ${d.confidence}% confidence</span>`;
+            });
+
+            document.getElementById('detectResults').style.display = 'block';
+
+        } catch(e) {
+            alert('Connection error. Make sure app.py is running.');
+        } finally {
+            document.getElementById('detectLoading').style.display = 'none';
+            document.getElementById('detectBtn').disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>

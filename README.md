@@ -5,23 +5,21 @@ Submitted by: Amal Al-Shboul & Roaa Shattnawi
 Supervised by: Dr. Nawaf Alsrehin  
 Second Semester 2025/2026
 
----
-
-## Project Structure
-cv_assignment2/
-├── feature_extraction.py       # Main feature extraction script
-├── app.py                      # Flask web demo backend
+AI-681/
+├── app.py
+├── yolov10_llvip_best.pt     ← الموديل
+├── feature_extraction.py
 ├── templates/
-│   └── index.html              # Web demo frontend
+│   └── index.html
 ├── visualization/
-│   └── AI681_visualization.py  # Visualization script
-├── AI681_Assignment2_Report.docx
+│   └── AI681_visualization.py
+├── sample_images/             
+│   ├── infrared/
+│   └── visible/
+
 └── README.md
-
----
-
 ## Step 1: Install Requirements
-pip install torch torchvision transformers opencv-python numpy flask matplotlib scikit-learn tqdm Pillow
+pip install torch torchvision transformers opencv-python numpy flask matplotlib ultralytics scikit-learn tqdm Pillow
 
 ---
 
